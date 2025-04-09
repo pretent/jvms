@@ -1,0 +1,302 @@
+#!/bin/bash
+#echo 'jdk版本切换工具';
+#echo '当前JAVA_HOME:'$JAVA_HOME;
+program="$0";
+dir=`dirname "$program"`;
+chome=`cd "$dir" >/dev/null; pwd`;
+
+conf=jvms.conf;
+jdk_dir=.jdk;
+profile_file=.zshrc;
+load_out_file=.output.txt
+#echo '当前工作目录:'$chome/$program;
+# jvms add 1.7 /usr/local/jdk/1.7
+options=$1;
+args=$2;
+path=$3;
+
+os=$(uname);
+mac="Darwin";
+linux="Linux";
+# 设置jdk
+jdk_version_set="";
+jdk_path_set="";
+
+if [ "${os}" = ${mac} ]; then
+	profile_file=.zshrc;
+else 
+	profile_file=.bash_profile;
+fi;
+
+#echo "System: ${os}";
+#echo "Config: ${profile_file}";
+
+# 检查是否初始化,.zshrc文件是否加入变量
+function check_init(){
+	flag=-1;
+	while read line;
+	do
+    if [[ "$line" =~ ^jvms=1 ]]; then
+			flag=1;
+			#echo '已完成初始化';
+      break;
+    fi;
+	done < ${HOME}/${profile_file};
+	return ${flag};
+};
+
+#rm 删除
+function frm(){
+	line=`cut -d '=' -f 1 $chome/$conf | grep -n $1 | head -1 | cut -d ':' -f 1`;
+	#line=`grep -n $1 $chome/$conf | cut -d ':' -f 1 | head -1`;
+	#echo "删除的行:${line}";
+	if [ -z $line ];then
+		echo -e "\033[31mNot exits jdk version $1,remote fail.\033[0m";
+		exit 0;
+	fi;
+	#确认删除
+	read -t 5 -p "Are you sure you want to continue remove (yes/no/)? " input 
+	if [ "$input" != "yes" ] && [ "$input" != 'y' ]; then 
+    echo "You did not enter 'yes'. Exit..."
+    exit 1;
+	fi;
+	if [ ${os} = ${mac} ];then
+		gsed -i "${line}d" $chome/$conf;
+	else
+		sed -i "${line}d" $chome/$conf;
+	fi;
+	echo -e "\033[32mRemove jdk version $1 success.\033[0m"; 
+};
+
+#load 加载系统jdk版本
+function load(){    
+	if [ ${os} = ${mac} ];then
+		/usr/libexec/java_home -V > ${chome}/${load_out_file} 2>&1;
+		gsed -i '1d' ${chome}/${load_out_file};
+		gsed -i '$d' ${chome}/${load_out_file};
+		dline=`grep -n -i 'PLUGIN' ${chome}/${load_out_file} | cut -d ':' -f 1`;
+		#echo "删除的plugin行:"${dline};
+		if [ ! -z $dline ];then
+			#echo "$dline"
+			gsed -i "${dline}d" ${chome}/${load_out_file};
+        	fi;
+		gsed -i 's/"/ /g' ${chome}/${load_out_file};
+		# 替换2个空格为1个
+		gsed -i 's/  / /g' ${chome}/${load_out_file};
+		
+        else
+		# linux 版本
+		echo "暂未实现";
+        fi;
+	while read vline;
+        do
+    	if [ -n "$vline" ]; then
+		lversion=`echo ${vline} | cut -d '-' -f 2,3 | cut -d' ' -f 4 | cut -d '.' -f 1 | sed 's/ //g'`;
+		lpath=`echo ${vline} | cut -d '-' -f 2,3 | cut -d' ' -f 5 | sed 's/ //g'`;
+		lline=`cut -d '=' -f 1 $chome/$conf | grep -n $lversion | head -1 | cut -d ':' -f 1`;
+		if [ -z $lline ];then
+			echo -e "\033[32m新增JDK版本:\t$lversion\033[0m";
+			echo -e "\033[32m新增JDK目录:\t$lpath\033[0m";
+			echo "$lversion=$lpath,$(date +'%Y-%m-%d %H:%M:%S')" >> $chome/$conf;
+		else
+			echo -e "\033[31mJDK version ${lversion} exists, Ignore it.\033[0m";		
+			continue;
+		fi;
+    	fi; 
+        done < ${chome}/${load_out_file};
+	rm -rf ${chome}/${load_out_file};
+	exit 0;
+};
+
+function printa(){
+	echo -e '\033[32mAvailable jdk version:\033[0m';
+	echo -e "\033[32mNO\t\tNAME\t\tPATH\t\t\t\t\t\t\t\t\tTIME\033[0m";
+	line_number=1;
+	cat $chome/$conf | while read line; do
+        	#echo "$line";
+        	if [[ "$line" =~ ^# ]] || [[ -z $line ]]; then
+                	continue;
+        	fi;
+        	jdk_version=`echo $line | cut -d '=' -f 1`;                 
+        	jdk_path_time=`echo $line | cut -d '=' -f 2`;
+        	jdk_path=`echo $jdk_path_time | cut -d ',' -f 1`;
+        	jdk_time=`echo $jdk_path_time | cut -d ',' -f 2`;
+        	echo -e "\033[32m${line_number}\t\t${jdk_version}\t\t${jdk_path}\t\t${jdk_time}\033[0m";
+		line_number=$((line_number + 1));
+	done;
+};
+
+#echo '1当前操作为:'$options;
+if [ -z $options ]; then 
+	options='-h';
+fi;
+if [ $options = '-h' ];then
+echo 'Usages: jvms options [args] [path]';
+	echo 'Available options:';
+	echo -e '\t\t\tinit\t\t初始化.';
+	echo -e '\t\t\tload\t\t扫描系统jdk并添加.';
+	echo -e '\t\t\tls\t\t列出所有jdk版本.';
+	echo -e '\t\t\trm\t\t删除指定jdk版本.';
+	echo -e '\t\t\tadd\t\t新增jdk版本.';
+	echo -e '\t\t\tset\t\t切换jdk版本.';
+	echo -e '\t\t\tinfo\t\t查看jvms信息.';
+	echo -e '\t\t\tuninstall\t卸载jvms.';
+	exit 0;
+fi;
+if [ ! -f  $chome/$conf ]; then
+        touch $chome/$conf;
+fi;
+#echo '2当前操作为:'$options;
+if [ $options = 'init' ];then
+  echo 'init start...';
+	while read line;
+	do
+    if [[ "$line" =~ ^jvms=1 ]]; then
+			echo -e "\033[32minit done...\033[0m"
+      exit 0;
+    fi;
+	done < ${HOME}/${profile_file};
+	# 备份
+	cp ${HOME}/${profile_file} ${HOME}/${profile_file}.bak.$(date +%s);
+	echo "" >> ${HOME}/${profile_file};
+	echo "########jvms##########" >> ${HOME}/${profile_file};
+	echo "jvms=1" >> ${HOME}/${profile_file};
+	echo "JAVA_HOME=${chome}/${jdk_dir}/Home" >> ${HOME}/${profile_file};
+	echo "JVMS_HOME=${chome}" >> ${HOME}/${profile_file};
+	echo "export JAVA_HOME" >> ${HOME}/${profile_file};
+	echo 'export PATH=$JVMS_HOME:$JAVA_HOME/bin:$PATH:.' >> ${HOME}/${profile_file};
+	echo "#jvms install $(date +'%Y-%m-%d %H:%M:%S')" >> ${HOME}/${profile_file};
+	echo "########jvms##########" >> ${HOME}/${profile_file};
+	echo "" >> ${HOME}/${profile_file}; 
+	source ${HOME}/${profile_file};
+	echo -e "\033[32minit done.\033[0m";
+elif [ $options = 'load' ];then
+	re1=$(load);
+	echo "${re1}";
+	re2=$(printa);
+	echo "${re2}";
+	exit 0;
+elif [ $options = 'info' ];then
+  echo 'jvms version "0.0.1" 2024-12-24.';
+	exit 0;
+elif [ $options = 'ls' ];then
+	re1=$(printa);
+	echo "${re1}";
+	exit 0;
+elif [ $options = 'add' ];then                     
+	$(check_init);
+	flag=$?;
+	if [ $flag = -1 ];then
+		echo "请先执行初始化.";
+		echo "Usage: jvms add NAME PATH";
+		exit 0;
+	fi;
+	if [ -z $args ];then
+		echo '参数无效';
+		echo "Usage: jvms add NAME PATH";
+		exit 0;
+	fi;
+	if [ -z $path ];then
+		echo '路径参数无效';
+		echo "Usage: jvms add NAME PATH";
+		exit 0;
+	else
+	  if [ ! -d $path ];then
+		  echo -e "\033[31mNo such file or directory: ${path}, add fail.\033[0m";
+			exit 0;
+		fi;
+	fi;
+  	echo -e "\033[32m新增JDK版本:\t$args\033[0m";
+	echo -e "\033[32m新增JDK目录:\t$path\033[0m";
+	echo "$args=$path,$(date +'%Y-%m-%d %H:%M:%S')" >> $chome/$conf;
+	echo 'Available jdk version:';
+	echo -e "NAME\t\tPATH\t\t\tTIME";
+	cat $chome/$conf | while read line; do
+		#echo "$line";
+		if [[ "$line" =~ ^# ]] || [[ -z $line ]]; then
+        		continue;
+		fi;
+		jdk_version=`echo $line | cut -d '=' -f 1`;
+		jdk_path_time=`echo $line | cut -d '=' -f 2`;
+		jdk_path=`echo $jdk_path_time | cut -d ',' -f 1`;
+		jdk_time=`echo $jdk_path_time | cut -d ',' -f 2`;
+		echo -e "${jdk_version}\t\t${jdk_path}\t\t${jdk_time}";
+	done;
+elif [ $options = 'rm' ];then               
+	if [ -z "${args}" ];then
+    echo '参数无效,请输入要删除的jdk版本名称.';
+    echo "Usage: jvms rm NAME";
+    exit 0;
+	fi;
+	frm $args;
+	exit 0;
+elif [ $options = 'set' ];then
+	$(check_init);
+	flag=$?;
+	if [ $flag = -1 ];then
+    		echo "请先执行初始化.";
+    		exit 0;
+	fi;     
+	#echo "设置JDK版本为:$args";
+	if [ -z $args ];then
+    		echo '参数无效,请输入要设置的jdk版本名称.';
+    		echo "Usage: jvms set NAME";
+    		exit 0;
+	fi;
+	while read line;
+	do
+		#echo "line : $line";
+		if [[ "$line" =~ ^# ]] || [[ -z $line ]]; then
+      			continue;
+	fi;
+		jdk_version=`echo $line | cut -d '=' -f 1`;
+    		jdk_path_time=`echo $line | cut -d '=' -f 2`;
+    		jdk_path=`echo $jdk_path_time | cut -d ',' -f 1`;
+    		jdk_time=`echo $jdk_path_time | cut -d ',' -f 2`;
+		#echo "version:$jdk_version,path:$jdk_path";
+		if [ $jdk_version = $args ];then
+			jdk_version_set=${jdk_version};
+			jdk_path_set=${jdk_path};
+			break;
+		fi;
+	done < $chome/$conf;
+	#echo "2.设置jdk版本为:$jdk_version_set,路径:$jdk_path_set";
+	if [ -z $jdk_version_set ] || [ -z $jdk_path_set ];then
+		echo -e "\033[31mNot exits jdk version ${args},set fail.\033[0m";
+		exit 0;
+	else
+		#echo "开始设置jdk版本:${jdk_version_set}	${jdk_path_set}";
+		if [ ! -d ${chome}/${jdk_dir} ];then
+			mkdir -p ${chome}/${jdk_dir};
+			#echo "${chome}/${jdk_dir} 创建成功.";
+		fi;
+		#echo "设置jdk目录:${jdk_path_set}	$chome/${jdk_dir}";
+		if [ ! -d ${jdk_path_set} ];then
+			echo 'jdk目录无效,设置失败.';
+			exit 0;
+		fi;
+		#echo "jdk_dir:$chome/${jdk_dir}";
+		#TODO 若存在需要删除
+		if [ -e $chome/${jdk_dir}/Home ];then
+      			#echo "$chome/${jdk_dir}/Home存在.";
+			rm  $chome/${jdk_dir}/Home;
+    		fi;
+		ln -sf ${jdk_path_set} $chome/${jdk_dir}/Home;
+		#echo "设置jdk版本完成:${jdk_version_set}	${jdk_path_set}";
+		echo -e "\033[32mjdk version ${jdk_version_set} set done.\033[0m";
+	fi;
+elif [ $options = 'uninstall' ];then               
+	echo "删除${profile_file}文件中相关配置即可,例如:";
+	echo "########jvms##########";	
+	echo "jvms=1";	
+	echo "########jvms##########";	
+  exit 0;
+elif [ $options = 'version' ];then
+	#echo `java -version`;
+	`java -version`;
+	exit 0;
+else
+	echo "不支持的操作: $1";
+fi;
+
+exit 0;
