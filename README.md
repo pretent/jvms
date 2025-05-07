@@ -1,1 +1,1 @@
-this project can switch your jdk version on your machine.
+This project can switch your jdk version on your machine.
