@@ -177,7 +177,11 @@ elif [ $options = 'load' ];then
 	echo "${re2}";
 	exit 0;
 elif [ $options = 'info' ];then
-  echo 'jvms version "0.0.1" 2024-12-24.';
+  echo -e "\033[32mjvms version "0.0.1" 2024-12-24.\033[0m";
+  echo -e "\033[32mJAVA_HOME:\t${JAVA_HOME}\033[0m";
+  current_java_home=`ls -alh $JAVA_HOME | cut -d '>' -f 2 | awk '{$1=$1}1'`;
+  echo -e "\033[32m当前版本:\t${current_java_home}\033[0m"
+
 	exit 0;
 elif [ $options = 'ls' ];then
 	re1=$(printa);
@@ -293,7 +297,10 @@ elif [ $options = 'uninstall' ];then
   exit 0;
 elif [ $options = 'version' ];then
 	#echo `java -version`;
-	`java -version`;
+   	echo -e "\033[32mJAVA_HOME: \t${JAVA_HOME}\033[0m";
+	current_java_home=`ls -alh $JAVA_HOME | cut -d '>' -f 2 | awk '{$1=$1}1'`;
+	echo -e "\033[32m当前版本:\t${current_java_home}\033[0m" 
+	#`java -version`;
 	exit 0;
 else
 	echo "不支持的操作: $1";
